@@ -42,13 +42,21 @@ task3.dependsOn task0
 task2.dependsOn task3, task4
 task dependTask(dependsOn: task2)
 
-/**
-    gradle helloWorld
-    gradle -q dependTask
-    gradle -q tasks --all
-    gradle task_1
-    gradle hW
-    gradle t1
-    gradle t2
-    gradle -q t2 -x t1
-*/
+task foo() << {
+    println 'foo task called'
+}
+
+task printGradleCommands << {
+    [ "gradle helloWorld"
+    , "gradle -q dependTask"
+    , "gradle -q tasks --all"
+    , "gradle task_1"
+    , "gradle hW"
+    , "gradle t1"
+    , "gradle t2"
+    , "gradle -q t2 -x t1"
+    , "gradle -b build.gradle --offline"
+    , "gradle -i -s helloworld"
+    , "gradle --daemon"
+    , "gradle --stop" ].each { println it }
+}
