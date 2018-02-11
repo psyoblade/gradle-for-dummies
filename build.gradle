@@ -1,8 +1,10 @@
 // Apply the java plugin to add support for Java
 apply plugin: 'java'
 
-version = 0.1
+// version = 0.1
 sourceCompatibility = 1.7
+
+setDescription("my first gradle proejct")
 
 // In this section you declare where to find the dependencies of your project
 repositories {
@@ -23,9 +25,11 @@ dependencies {
     testCompile 'junit:junit:4.12'
 }
 
-task helloWorld << {
-    println 'hello world'
-    chant()
+task helloWorld {
+    doLast { // << shiftLeft is deprecated so use doLast instead.
+        println 'hello world'
+        chant()
+    }
 }
 
 def chant() { // method
@@ -62,7 +66,10 @@ task printGradleCommands << {
     , "gradle -i -s helloworld"
     , "gradle --daemon"
     , "gradle --stop"
-    , "gradle properties" ].each { println it }
+    , "gradle properties"
+    , "gradle printProperties -Pxxx=yyy"
+    , "gradle printProperties -Ddescription=other_discription"
+    ].each { println it }
 }
 
 jar {
@@ -70,3 +77,170 @@ jar {
 		attributes 'Main-Class': 'com.ncsoft.dataplatform.psyoblade.HelloWorld'
 	}
 }
+
+task printDescription << {
+    println "description of this project $name: " + project.description
+}
+
+
+// Initialize my own extra properties - 처음 선언 시에는 반드시 namespace 가 필요하지만
+project.ext.props = 'my own properties'
+ext {
+    userName = 'park suhyuk'
+    userId = 'psyoblade'
+}
+
+// 사용 시에는 그대로 사용할 수 있다 
+task printProperties << {
+    println "name is $userName, id is $userId, -Pxxx $xxx"
+}
+
+
+/**
+ * 4.2. Working with tasks
+ *  SNAPSHOT designator to indicate that the built project artifact is in the state of development.
+ *  ProjectVersion (major: String, minor: String, release: Boolean)
+ */
+
+task printVersion {
+    group = 'versioning'
+    description = 'print project version'
+    doFirst {
+        println "before reading the project version"
+    }
+    doLast {
+        logger.quiet "Version: $version"
+    }
+}
+// 위의 doFrist 를 제외한 나머지는 아래의 task와 동일하다.
+task printVersion2(group: 'versioning', description: 'print current version') << {
+    logger.quiet "Version: $version"
+}
+// gradle tasks 명령어를 통해서 현재 group, description 정보를 확인할 수 있다.
+// 같은 그룹명을 가진 task 들은 같이 출력된다.
+
+/**
+ * Task dependencies
+ */
+
+task b_first << { println "first" }
+task a_second << { println "seconds" }
+task printVersion3 (dependsOn: [ b_first, a_second ] ) << { logger.quiet "version: $version" }
+// 위 dependsOn list 내의 task 호출 순서는 순서대로가 아니다.
+// In Gradle, the task execution order is not deterministic. - 영문 순서처럼 보이지만 그것도 아닌 것 같다.
+task x_third << { println "third" }
+x_third.dependsOn('printVersion3')
+
+// 위의 순서에 대한 명시적인 구분은 finalizedBy 구문을 통해서 수행할 수 있다.
+task first << { println "first" }
+task second << { println "seconds" }
+first.finalizedBy second
+task printVersion4 (dependsOn: [ second, first ]) << { logger.quiet "version: $version" }
+
+/**
+ * 4.2.6 Adding arbitrary code
+ * 그루비에서는 Java POJO 같이 POGO라고 하는데 getter, setter를 명시하지 않아도 자동으로 구성해 준다.
+ * 즉, properties 설정만 하면 get\/set 접근이 가능하다.
+ */
+
+// version = new ProjectVersion(1, 0, 2)
+
+class ProjectVersion {
+    Integer major
+    Integer minor
+    Integer patch
+    Boolean release
+
+    ProjectVersion(Integer major, Integer minor, Integer patch) {
+        this.major = major
+        this.minor = minor
+        this.patch = patch
+        this.release = Boolean.FALSE
+    }
+
+    ProjectVersion(Integer major, Integer minor, Integer patch, Boolean release) {
+        this(major, minor, patch)
+        this.release = release
+    }
+
+    @Override
+    String toString() {
+        "$major.$minor.$patch${release ? '' : '-SNAPSHOT'}"
+    }
+}
+
+ext.versionFile = file('version.properties')
+task loadVersion << {
+    project.version = readVersion()
+    println "debug version: " + project.version
+}
+
+ProjectVersion readVersion() {
+    logger.quiet 'Reading the version file.'
+    if (!versionFile.exists()) {
+        throw new GradleException("Required version file does not exists: $versionFile.canonicalPath")
+    }
+    Properties versionProps = new Properties()
+    versionFile.withInputStream { stream -> versionProps.load(stream) }
+    println versionProps
+    new ProjectVersion(versionProps.major.toInteger(), versionProps.minor.toInteger(), versionProps.patch.toInteger(), versionProps.release.toBoolean())
+}
+
+// version.properties 파일을 열어서 release 버전으로 변경.
+task makeReleaseVersion(group: 'versioning', description: 'Makes project a release version.') << {
+    version.release = true
+    ant.propertyfile(file: versionFile) {
+        entry(key: 'release', type: 'string', operation: '=', value: 'true')
+    }
+}
+
+task printVersionFinal << {
+    project.version = readVersion()
+    println "version: $version"
+}
+
+task createDistribution(type: Zip, dependsOn: makeReleaseVersion) {
+    from jar.outputs.files
+    from (sourceSets*.allSource) {
+        into 'src'
+    }
+    from (rootDir) {
+        include versionFile.name
+    }
+}
+
+task backupReleaseDistribution(type: Copy) {
+    from createDistribution.outputs.files
+    into "$buildDir/backup"
+}
+
+task release(dependsOn: backupReleaseDistribution) << {
+    logger.quiet 'Releasing the project...'
+}
+
+/**
+ * Increment major, minor version
+ */
+
+task incrementMajorVersion(group: 'versioning', description: 'Increments project major version.') << {
+    String currentVersion = version.toString()
+    ++version.major
+    String newVersion = version.toString()
+    logger.info "Incrementing major project version: $currentVersion -> $newVersion"
+    ant.propertyfile(file: versionFile) {
+        entry(key: 'major', type: 'int', operation: '+', value: 1)
+    }
+}
+
+task incrementMinorVersion(group: 'versioning', description: 'Increments project minor version.') << {
+    String currentVersion = version.toString()
+    ++version.minor
+    String newVersion = version.toString()
+    logger.info "Incrementing minor project version: $currentVersion -> $newVersion"
+    ant.propertyfile(file: versionFile) {
+        entry(key: 'minor', type: 'int', operation: '+', value: 1)
+    }
+}
+
+// gradle incrementMajorVersion -i
+// p96 까지 읽고 실습 했음.
