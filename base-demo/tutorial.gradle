@@ -1,0 +1,14 @@
+plugins {
+    id "base"
+}
+
+task copy(type: Copy, group: "Custom", description: "Copy src to dest") {
+    from "src"
+    into "dest"
+}
+
+task zip(type: Zip, group: "Archive", description: "Archives sources in a zip file") {
+    from "src"
+    setArchiveName "tutorial-1.0.zip"
+    println("run zip")
+}

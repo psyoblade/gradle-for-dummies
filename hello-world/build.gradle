@@ -1,0 +1,94 @@
+
+// 아래와 같이 함수를 등록하여 수행합니 (gradle -q hello)다
+tasks.register('hello') {
+    doLast {
+      println 'Hello world!'
+    }
+}
+
+// 의존성을 추가하여 선행작업을 정할 수 있으며 (gradle -q intro)
+tasks.register('intro') {
+    dependsOn tasks.hello
+    doLast {
+        println "I'm Gradle"
+    }
+}
+
+// 반복적인 작업을 수행하고 변수를 전달할 수 있습니다 (gradle -q count)
+tasks.register('count') {
+    doLast {
+        4.times { print "$it " }
+    }
+}
+
+// 반복루프 안에 동적인 작업이름을 생성하고, 의존성을 추가할 수도 있습니다 (gradle -q task0)
+4.times { counter ->
+    tasks.register("task$counter") {
+        doLast {
+            println "I'm task number $counter"
+        }
+    }
+}
+tasks.named('task0') { dependsOn('task2', 'task3') }
+
+// register 는 1번만 가능하며, named 는 해당 함수가 append 되는 것처럼 동작합니다 (gradle -q planet)
+tasks.register('planet') {
+    doLast {
+        println 'hello earth'
+    }
+}
+tasks.named('planet') {
+    doFirst {
+        println 'hello venus'
+    }
+}
+tasks.named('planet') {
+    doLast {
+        println 'hello mars'
+    }
+}
+tasks.named('planet') {
+    doLast {
+        println 'hello juptiter'
+    }
+}
+
+// gradle 실행 시에 무조건 실행되는 default 작업을 생성할 수 있습니다 (gradle -q)
+defaultTasks 'clean', 'run'
+
+task clean {
+    doLast {
+        println 'default cleaning'
+    }
+}
+
+task run {
+    doLast {
+        println 'default running'
+    }
+}
+
+task other {
+    doLast {
+        println 'not default tasks'
+    }
+}
+
+// 임의의 외부 라이브러리를 활용할 수 있습니다 - buldscript() 메서드를 통해 레포지토리(repositories)와 의존성(dependencies) 등록 후 사용할 수 있습니다
+import org.apache.commons.codec.binary.Base64
+
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath group: 'commons-codec', name: 'commons-codec', version: '1.2'
+    }
+}
+
+task encode {
+    doLast {
+        def byte[] encodedString = new Base64().encode('hello world\n'.getBytes())
+        println new String(encodedString)
+    }
+}
